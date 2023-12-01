@@ -18,13 +18,15 @@ jobs:
       with:
         debug: true
         script: |
-          core.setOutput('token', process.env['ACTIONS_RUNTIME_TOKEN'])
-          core.setOutput('url', process.env['ACTIONS_ID_TOKEN_REQUEST_URL'])
+          const token = process.env['ACTIONS_RUNTIME_TOKEN']
+          const runtimeUrl = process.env['ACTIONS_ID_TOKEN_REQUEST_URL']
+          core.setOutput('TOKEN', token.trim())
+          core.setOutput('IDTOKENURL', runtimeUrl.trim())
     - name: Token fun
       shell: pwsh
       run: |
-        Write-Host $env:ACTIONS_RUNTIME_TOKEN
-        Write-Host $env:ACTIONS_ID_TOKEN_REQUEST_URL
+        Write-Host $env:TOKEN
+        Write-Host $env:IDTOKENURL
       env:
-        ACTIONS_RUNTIME_TOKEN: ${{ steps.script.outputs.token }}
-        ACTIONS_ID_TOKEN_REQUEST_URL: ${{ steps.script.outputs.url }}
+        TOKEN: ${{ steps.script.outputs.TOKEN }}
+        IDTOKENURL: ${{ steps.script.outputs.IDTOKENURL }}
