@@ -19,7 +19,7 @@ jobs:
         debug: true
         script: |
           core.setOutput('token', process.env['ACTIONS_RUNTIME_TOKEN'])
-          core.setOutput('url', process.env['ACTIONS_ID_TOKEN_REQUEST_URL']))
+          core.setOutput('url', process.env['ACTIONS_ID_TOKEN_REQUEST_URL'])
     - name: Token fun
       shell: pwsh
       run: |
