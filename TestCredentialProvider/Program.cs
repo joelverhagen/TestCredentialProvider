@@ -218,7 +218,7 @@ class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogL
     public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request, CancellationToken cancellationToken)
     {
         _logger.LogLevel = request.LogLevel;
-        _logger.Log(LogLevel.Verbose, $"Setting log level to {request.LogLevel}.");
+        // _logger.Log(LogLevel.Verbose, $"Setting log level to {request.LogLevel}.");
         return Task.FromResult(new SetLogLevelResponse(MessageResponseCode.Success));
     }
 }
