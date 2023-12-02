@@ -169,7 +169,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             return (Success: false, $"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message, Token: null);
         }
 
-        return (Success: true, "Successfully fetched a token.", Token: tokenResponse.Value);
+        return (Success: true, "Successfully fetched a token. " + tokenResponse.Value, Token: tokenResponse.Value);
     }
 }
 
