@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Threading.Channels;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using NuGet.Common;
 using NuGet.Protocol.Plugins;
 
@@ -92,7 +93,7 @@ class PluginLogger : IDisposable
     {
         var pid = Process.GetCurrentProcess().Id;
         var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
-        message = $"    [oidc-login {pid}] [{levelPrefix}] {message}";
+        message = $"    [oidc-login {pid} {levelPrefix}] {message}";
 
         LogToFile(message);
         _messages.Writer.TryWrite((level, message));
@@ -365,7 +366,11 @@ class SetCredentialsRequestHandler : RequestHandlerBase<SetCredentialsRequest, S
 abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
     where TResponse : class
 {
-    protected PluginLogger _logger;
+    private static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
+    {
+        Converters = { new RedactingJsonConverter() }
+    };
+    protected readonly PluginLogger _logger;
 
     public RequestHandlerBase(PluginLogger logger)
     {
@@ -377,10 +382,10 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
 
     public async Task HandleResponseAsync(IConnection connection, Message message, IResponseHandler responseHandler, CancellationToken cancellationToken)
     {
-        _logger.Log(LogLevel.Debug, "Received request: " + JsonConvert.SerializeObject(message));
+        _logger.Log(LogLevel.Debug, "Received request: " + JsonConvert.SerializeObject(message, Settings));
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
         var response = await HandleRequestAsync(request, cancellationToken);
-        _logger.Log(LogLevel.Debug, "Sending response: " + JsonConvert.SerializeObject(response));
+        _logger.Log(LogLevel.Debug, "Sending response: " + JsonConvert.SerializeObject(response, Settings));
         await responseHandler.SendResponseAsync(message, response, cancellationToken);
 
         // Only start the logger after we know the log level. If we start sending log messages too early the
@@ -390,6 +395,32 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
             _logger.Log(LogLevel.Debug, "Starting plugin logger.");
             _logger.Start();
         }
+    }
+}
+
+class RedactingJsonConverter : JsonConverter
+{
+    public override bool CanConvert(Type objectType)
+    {
+        return objectType == typeof(GetAuthenticationCredentialsResponse);
+    }
+
+    public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+    {
+        if (value is null)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        var json = JToken.FromObject(value);
+        json["Password"] = "REDACTED";
+        serializer.Serialize(writer, json);
     }
 }
 
