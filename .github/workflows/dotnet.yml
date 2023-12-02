@@ -27,6 +27,11 @@ jobs:
           "Content-Type" = "application/json"
         }
         $resp = Invoke-WebRequest -Method POST $url -Headers $headers -Body "{}"
-        Write-Host $resp.Content
+        $resp.Content | Out-File "resp.json" -Encoding utf8
       env:
         TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: my-artifact
+        path: resp.json
