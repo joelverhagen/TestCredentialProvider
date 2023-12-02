@@ -19,6 +19,14 @@ jobs:
     - name: Token fun
       shell: pwsh
       run: |
-        Write-Host $env:TOKEN_INFO
+        $info = $env:TOKEN_INFO | ConvertFrom-Json
+        $url = "$($info.tokenUrl)&authority=$($info.authority)"
+        $headers = @{
+          Authorization = "Bearer $($info.runtimeToken)";
+          Accept = "application/json; api-version=2.0";
+          Content-Type = "application/json"
+        }
+        $resp = Invoke-WebRequest -Method POST $url -Headers $headers -Body "{}"
+        Write-Host $resp.Content
       env:
         TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
