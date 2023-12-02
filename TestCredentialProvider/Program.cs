@@ -234,7 +234,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
     public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request, CancellationToken cancellationToken)
     {
         _logger.Log(LogLevel.Verbose, $"Beginning authentication credential request for package source '{request.Uri.AbsoluteUri}'.");
-        var (success, message, token) = await GetTokenAsync(request);
+        var (success, message, tokenInfo, token) = await GetTokenAsync(request);
         _logger.Log(success ? LogLevel.Minimal : LogLevel.Warning, message);
 
         if (!success)
@@ -248,7 +248,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
         }
 
         var response = new GetAuthenticationCredentialsResponse(
-            username: "BEARER_TOKEN_USER",
+            username: tokenInfo!.Username,
             password: token,
             message,
             authenticationTypes: new[] { "Basic" },
@@ -262,12 +262,12 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
         return response;
     }
 
-    private async Task<(bool Success, string Message, string? Token)> GetTokenAsync(GetAuthenticationCredentialsRequest request)
+    private async Task<(bool Success, string Message, TokenInfo? TokenInfo, string? Token)> GetTokenAsync(GetAuthenticationCredentialsRequest request)
     {
         var tokenInfoJson = Environment.GetEnvironmentVariable("NUGET_TOKEN_INFO");
         if (string.IsNullOrWhiteSpace(tokenInfoJson))
         {
-            return (Success: false, "Environment variable NUGET_TOKEN_INFO is not set.", Token: null);
+            return (Success: false, "Environment variable NUGET_TOKEN_INFO is not set.", TokenInfo: null, Token: null);
         }
 
         TokenInfo? tokenInfo;
@@ -276,25 +276,25 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             tokenInfo = JsonConvert.DeserializeObject<TokenInfo>(tokenInfoJson);
             if (tokenInfo is null)
             {
-                return (Success: false, "The NUGET_TOKEN_INFO environment variable is not set.", Token: null);
+                return (Success: false, "The NUGET_TOKEN_INFO environment variable is not set.", TokenInfo: null, Token: null);
             }
         }
         catch (JsonException ex)
         {
-            return (Success: false, "The NUGET_TOKEN_INFO environment variable could not be deserialized. " + ex.Message, Token: null);
+            return (Success: false, "The NUGET_TOKEN_INFO environment variable could not be deserialized. " + ex.Message, TokenInfo: null, Token: null);
         }
 
         if (tokenInfo.PackageSource != request.Uri.AbsoluteUri)
         {
             return (Success: false, $"The package source '{tokenInfo.PackageSource}' in NUGET_TOKEN_INFO " +
-                $"does not match '{request.Uri.AbsoluteUri}' in the credential request.", Token: null);
+                $"does not match '{request.Uri.AbsoluteUri}' in the credential request.", TokenInfo: null, Token: null);
         }
 
         _logger.Log(LogLevel.Verbose, "Found a matching package source in NUGET_TOKEN_INFO.");
 
         if (!Uri.TryCreate(tokenInfo.TokenUrl, UriKind.Absolute, out var tokenUrl))
         {
-            return (Success: false, $"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid URL.", Token: null);
+            return (Success: false, $"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid URL.", TokenInfo: null, Token: null);
         }
 
         _logger.Log(LogLevel.Verbose, $"Using audience value '{tokenInfo.Audience}' from NUGET_TOKEN_INFO.");
@@ -325,33 +325,35 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             tokenResponse = JsonConvert.DeserializeObject<TokenResponse>(tokenResponseJson);
             if (string.IsNullOrEmpty(tokenResponse?.Value))
             {
-                return (Success: false, "No token value was found in the token URL response.", Token: null);
+                return (Success: false, "No token value was found in the token URL response.", TokenInfo: null, Token: null);
             }
         }
         catch (Exception ex)
         {
-            return (Success: false, $"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message, Token: null);
+            return (Success: false, $"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message, TokenInfo: null, Token: null);
         }
 
-        return (Success: true, "Successfully fetched a token using NUGET_TOKEN_INFO.", Token: tokenResponse.Value);
+        return (Success: true, "Successfully fetched a token using NUGET_TOKEN_INFO.", TokenInfo: tokenInfo, Token: tokenResponse.Value);
     }
 }
 
 class TokenInfo
 {
     [JsonConstructor]
-    public TokenInfo(string audience, string packageSource, string runtimeToken, string tokenUrl)
+    public TokenInfo(string audience, string packageSource, string runtimeToken, string tokenUrl, string username)
     {
         Audience = audience;
         PackageSource = packageSource;
         RuntimeToken = runtimeToken;
         TokenUrl = tokenUrl;
+        Username = username;
     }
 
     public string Audience { get; }
     public string PackageSource { get; }
     public string RuntimeToken { get; }
     public string TokenUrl { get; }
+    public string Username { get; }
 }
 
 class TokenResponse
