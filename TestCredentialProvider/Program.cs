@@ -11,6 +11,8 @@ internal class Program
     {
         using var cts = new CancellationTokenSource();
         using var logger = new PluginLogger(cts.Token);
+        logger.Start();
+
         Console.CancelKeyPress += (_, _) => cts.Cancel();
 
         if (args.Length == 1 && args[0] == "-Plugin")
@@ -34,6 +36,7 @@ internal class Program
             var closedTaskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             plugin.Closed += (_, _) => closedTaskCompletionSource.TrySetResult();
 
+            await logger.StopAsync();
             await closedTaskCompletionSource.Task;
             return 0;
         }
@@ -98,7 +101,7 @@ class PluginLogger : IDisposable
         var _ = _lazyFlush.Value;
     }
 
-    public async void StopAsync()
+    public async Task StopAsync()
     {
         if (!_lazyFlush.IsValueCreated)
         {
@@ -120,7 +123,7 @@ class PluginLogger : IDisposable
     {
         await foreach (var (level, message) in _messages.Reader.ReadAllAsync(_linkedCts.Token))
         {
-            File.AppendAllLines($"TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
+            File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
 
             if (level < LogLevel)
             {
