@@ -50,10 +50,17 @@ jobs:
         name: my-artifact
         path: resp.json
 
-    - name: Try API
+    - name: Try restore
+      run: dotnet restore -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json --non-interactive
+      env:
+        NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+      if: always()
+
+    - name: Try delete
       run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+      if: always()
 
     - run: ls -la
       if: always()
