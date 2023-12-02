@@ -155,6 +155,7 @@ class InitializeRequestHandler : RequestHandlerBase<InitializeRequest, Initializ
 
     public override Task<InitializeResponse> HandleRequestAsync(InitializeRequest request, CancellationToken cancellationToken)
     {
+        _logger.Start();
         return Task.FromResult(new InitializeResponse(MessageResponseCode.Success));
     }
 }
@@ -185,8 +186,6 @@ class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogL
     public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request, CancellationToken cancellationToken)
     {
         _logger.LogLevel = request.LogLevel;
-        _logger.Start();
-
         return Task.FromResult(new SetLogLevelResponse(MessageResponseCode.Success));
     }
 }
