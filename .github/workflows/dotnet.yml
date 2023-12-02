@@ -30,6 +30,8 @@ jobs:
 
     - uses: joelverhagen/oidc-login@v0.1.0
       id: iodc-login
+      with:
+        package-source: https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json
 
     - name: Token fun
       shell: pwsh
@@ -51,19 +53,19 @@ jobs:
         path: resp.json
 
     - name: Try restore
-      run: dotnet restore -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json  --verbosity detailed
+      run: dotnet restore -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
       if: always()
 
     - name: Try delete
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json --non-interactive --verbosity detailed
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
       if: always()
 
     - name: Try delete 2
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json -k "FAKE" --non-interactive --verbosity detailed
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json -k "FAKE" --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
       if: always()
