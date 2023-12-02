@@ -26,7 +26,7 @@ jobs:
       run: dotnet build --no-restore
 
     - name: Publish
-      run: dotnet publish --output "~/.nuget/netcore/TestCredentialProvider"
+      run: dotnet publish --output ~/.nuget/netcore/TestCredentialProvider
 
     - uses: joelverhagen/oidc-login@v0.1.0
       id: iodc-login
