@@ -107,7 +107,7 @@ class PluginLogger : IDisposable
     public async Task PauseForEmptyAsync(TimeSpan delay)
     {
         var sw = Stopwatch.StartNew();
-        while (_lazyFlush.IsValueCreated && sw.Elapsed < delay && _messages.Reader.Count > 0)
+        while (_lazyFlush.IsValueCreated && sw.Elapsed < delay)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(100));
         }
