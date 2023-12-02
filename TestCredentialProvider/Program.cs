@@ -36,7 +36,7 @@ internal class Program
             plugin.Closed += (_, _) => closedTaskCompletionSource.TrySetResult();
 
             await closedTaskCompletionSource.Task;
-            await logger.StopAsync(TimeSpan.FromSeconds(1));
+            await logger.StopAsync(TimeSpan.FromSeconds(5));
             return 0;
         }
         else
@@ -105,6 +105,7 @@ class PluginLogger : IDisposable
             return;
         }
 
+        _messages.Writer.TryComplete();
         _stopCts.CancelAfter(delay);
         try
         {
@@ -155,7 +156,6 @@ class InitializeRequestHandler : RequestHandlerBase<InitializeRequest, Initializ
 
     public override Task<InitializeResponse> HandleRequestAsync(InitializeRequest request, CancellationToken cancellationToken)
     {
-        _logger.Start();
         return Task.FromResult(new InitializeResponse(MessageResponseCode.Success));
     }
 }
@@ -198,9 +198,9 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
 
     public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request, CancellationToken cancellationToken)
     {
-        _logger.Log(LogLevel.Warning, "Beginning authentication credential request for " + request.Uri);
+        _logger.Log(LogLevel.Verbose, $"Beginning authentication credential request for package source '{request.Uri.AbsoluteUri}'.");
         var (success, message, token) = await GetTokenAsync(request);
-        _logger.Log(LogLevel.Warning, message);
+        _logger.Log(success ? LogLevel.Minimal : LogLevel.Warning, message);
 
         if (!success)
         {
@@ -211,13 +211,20 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
                 authenticationTypes: Array.Empty<string>(),
                 MessageResponseCode.NotFound);
         }
-        
-        return new GetAuthenticationCredentialsResponse(
+
+        var response = new GetAuthenticationCredentialsResponse(
             username: "BEARER_TOKEN_USER",
             password: token,
             message,
             authenticationTypes: new[] { "Basic" },
             MessageResponseCode.Success);
+
+        _logger.Log(
+            LogLevel.Verbose,
+            $"Returning successful credential response with username '{response.Username}' and " +
+            $"authentication type {string.Join(", ", response.AuthenticationTypes)}.");
+
+        return response;
     }
 
     private async Task<(bool Success, string Message, string? Token)> GetTokenAsync(GetAuthenticationCredentialsRequest request)
@@ -248,11 +255,14 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
                 $"does not match '{request.Uri.AbsoluteUri}' in the credential request.", Token: null);
         }
 
+        _logger.Log(LogLevel.Verbose, "Found a matching package source in NUGET_TOKEN_INFO.");
+
         if (!Uri.TryCreate(tokenInfo.TokenUrl, UriKind.Absolute, out var tokenUrl))
         {
             return (Success: false, $"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid URL.", Token: null);
         }
 
+        _logger.Log(LogLevel.Verbose, $"Using audience value '{tokenInfo.Audience} from NUGET_TOKEN_INFO.");
         var audience = $"audience={Uri.EscapeDataString(tokenInfo.Audience)}";
         var tokenUrlBuilder = new UriBuilder(tokenUrl);
         if (string.IsNullOrEmpty(tokenUrlBuilder.Query))
@@ -267,11 +277,13 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
         TokenResponse? tokenResponse;
         try
         {
+            _logger.Log(LogLevel.Verbose, "Fetching a token from the token URL provided in NUGET_TOKEN_INFO.");
             using var httpClient = new HttpClient();
             using var requestMessage = new HttpRequestMessage(HttpMethod.Get, tokenUrlBuilder.Uri);
             requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenInfo.RuntimeToken);
             requestMessage.Headers.TryAddWithoutValidation("Accept", "application/json; api-version=2.0");
             using var responseMessage = await httpClient.SendAsync(requestMessage);
+            _logger.Log(LogLevel.Verbose, $"Token URL returned HTTP {(int)responseMessage.StatusCode}.");
             responseMessage.EnsureSuccessStatusCode();
             var tokenResponseJson = await responseMessage.Content.ReadAsStringAsync();
             tokenResponse = JsonConvert.DeserializeObject<TokenResponse>(tokenResponseJson);
@@ -285,7 +297,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             return (Success: false, $"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message, Token: null);
         }
 
-        return (Success: true, "Successfully fetched a token. " + tokenResponse.Value, Token: tokenResponse.Value);
+        return (Success: true, "Successfully fetched a token using NUGET_TOKEN_INFO.", Token: tokenResponse.Value);
     }
 }
 
@@ -344,11 +356,19 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
 
     public async Task HandleResponseAsync(IConnection connection, Message message, IResponseHandler responseHandler, CancellationToken cancellationToken)
     {
-        _logger.Log(LogLevel.Warning, "Received request: " + JsonConvert.SerializeObject(message));
+        _logger.Log(LogLevel.Debug, "Received request: " + JsonConvert.SerializeObject(message));
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
         var response = await HandleRequestAsync(request, cancellationToken);
-        _logger.Log(LogLevel.Warning, "Sending response: " + JsonConvert.SerializeObject(response));
+        _logger.Log(LogLevel.Debug, "Sending response: " + JsonConvert.SerializeObject(response));
         await responseHandler.SendResponseAsync(message, response, cancellationToken);
+
+        // Only start the logger after we know the log level. If we start sending log messages too early the
+        // connection hangs.
+        if (message.Method == MessageMethod.SetLogLevel)
+        {
+            _logger.Log(LogLevel.Debug, "Starting plugin logger.");
+            _logger.Start();
+        }
     }
 }
 
