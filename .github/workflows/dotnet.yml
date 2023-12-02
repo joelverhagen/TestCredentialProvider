@@ -20,13 +20,16 @@ jobs:
       shell: pwsh
       run: |
         $info = $env:TOKEN_INFO | ConvertFrom-Json
-        $url = "$($info.tokenUrl)&audience=$($info.audience)"
+        $url = "$($info.tokenUrl)&audience=$([Uri]::EscapeDataString($info.audience))"
         $headers = @{
           Authorization = "Bearer $($info.runtimeToken)";
           Accept = "application/json; api-version=2.0";
           "Content-Type" = "application/json"
         }
+        Write-Host $url
+        Write-Host $headers
         $resp = Invoke-WebRequest -Method POST $url -Headers $headers -Body "{}"
+        Write-Host $resp
         $resp.Content | Out-File "resp.json" -Encoding utf8
       env:
         TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
