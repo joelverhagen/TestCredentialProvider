@@ -64,3 +64,9 @@ jobs:
 
     - run: ls -la
       if: always()
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: my-log
+        path: TestCredentialProvider.log.txt
+      if: always()
