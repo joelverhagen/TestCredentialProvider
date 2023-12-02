@@ -134,10 +134,12 @@ class PluginLogger : IDisposable
 
             try
             {
+                /*
                 var _ = plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
                     MessageMethod.Log,
                     new LogRequest(level, message),
                     _stopCts.Token).ContinueWith(x => x.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                */
             }
             catch (Exception ex)
             {
