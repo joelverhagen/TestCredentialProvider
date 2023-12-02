@@ -11,7 +11,6 @@ internal class Program
     {
         using var cts = new CancellationTokenSource();
         using var logger = new PluginLogger();
-        logger.Start();
 
         Console.CancelKeyPress += (_, _) => cts.Cancel();
 
@@ -134,12 +133,10 @@ class PluginLogger : IDisposable
 
             try
             {
-                /*
                 var _ = plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
                     MessageMethod.Log,
                     new LogRequest(level, message),
                     _stopCts.Token).ContinueWith(x => x.Exception, TaskContinuationOptions.OnlyOnFaulted);
-                */
             }
             catch (Exception ex)
             {
@@ -188,6 +185,8 @@ class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogL
     public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request, CancellationToken cancellationToken)
     {
         _logger.LogLevel = request.LogLevel;
+        _logger.Start();
+
         return Task.FromResult(new SetLogLevelResponse(MessageResponseCode.Success));
     }
 }
