@@ -12,6 +12,21 @@ jobs:
       id-token: write
 
     steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore
+
+    - name: Publish
+      run: dotnet publish --output "~/.nuget/netcore/TestCredentialProvider"
 
     - uses: joelverhagen/oidc-login@v0.1.0
       id: iodc-login
@@ -19,22 +34,26 @@ jobs:
     - name: Token fun
       shell: pwsh
       run: |
-        $info = $env:TOKEN_INFO | ConvertFrom-Json
+        $info = $env:NUGET_TOKEN_INFO | ConvertFrom-Json
         $url = "$($info.tokenUrl)&audience=$([Uri]::EscapeDataString($info.audience))"
         $headers = @{
           Authorization = "Bearer $($info.runtimeToken)";
-          Accept = "application/json; api-version=2.0";
-          "Content-Type" = "application/json"
+          Accept = "application/json; api-version=2.0"
         }
-        Write-Host $url
-        Write-Host $headers
-        $resp = Invoke-WebRequest -Method GET $url -Headers $headers
-        Write-Host $resp
+        $resp = Invoke-WebRequest $url -Headers $headers
         $resp.Content | Out-File "resp.json" -Encoding utf8
       env:
-        TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+        NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
 
     - uses: actions/upload-artifact@v3
       with:
         name: my-artifact
         path: resp.json
+
+    - name: Try API
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json -k "FAKE" --non-interactive
+      env:
+        NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+
+    - run: ls -la
+      if: always()
