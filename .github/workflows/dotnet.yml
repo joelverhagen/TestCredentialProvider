@@ -53,12 +53,7 @@ jobs:
       run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
-      if: always()
-
-    - name: Try delete 2
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json -k "FAKE" --non-interactive
-      env:
-        NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
+        NUGET_SHOW_STACK: true
       if: always()
 
     - run: ls -la
