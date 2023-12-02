@@ -120,6 +120,8 @@ class PluginLogger : IDisposable
     {
         await foreach (var (level, message) in _messages.Reader.ReadAllAsync(_linkedCts.Token))
         {
+            File.AppendAllLines($"TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
+
             if (level < LogLevel)
             {
                 continue;
