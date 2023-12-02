@@ -12,19 +12,13 @@ jobs:
       id-token: write
 
     steps:
-    - uses: actions/github-script@v6
-      id: get_token
-      timeout-minutes: 10
-      with:
-        debug: true
-        script: |
-          core.setOutput('TOKEN', process.env['ACTIONS_RUNTIME_TOKEN'])
-          core.setOutput('URL', process.env['ACTIONS_ID_TOKEN_REQUEST_URL'])
+
+    - uses: joelverhagen/oidc-login@v0.1.0
+      id: iodc-login
+
     - name: Token fun
       shell: pwsh
       run: |
-        Write-Host $env:ACTIONS_RUNTIME_TOKEN
-        Write-Host $env:ACTIONS_ID_TOKEN_REQUEST_URL
+        Write-Host $env:TOKEN_INFO
       env:
-        ACTIONS_RUNTIME_TOKEN: ${{ steps.get_token.outputs.TOKEN }}
-        ACTIONS_ID_TOKEN_REQUEST_URL: ${{ steps.get_token.outputs.URL }}
+        TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
