@@ -20,7 +20,7 @@ jobs:
       shell: pwsh
       run: |
         $info = $env:TOKEN_INFO | ConvertFrom-Json
-        $url = "$($info.tokenUrl)&authority=$($info.authority)"
+        $url = "$($info.tokenUrl)&audience=$($info.audience)"
         $headers = @{
           Authorization = "Bearer $($info.runtimeToken)";
           Accept = "application/json; api-version=2.0";
