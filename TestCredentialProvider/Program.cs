@@ -398,7 +398,7 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
         var response = await HandleRequestAsync(request, cancellationToken);
         _logger.Log(LogLevel.Debug, "Sending response: " + JsonConvert.SerializeObject(response, Settings));
-        await _logger.PauseForEmptyAsync(TimeSpan.FromMilliseconds(100));
+        // await _logger.PauseForEmptyAsync(TimeSpan.FromMilliseconds(100));
         await responseHandler.SendResponseAsync(message, response, cancellationToken);
 
         // Only start the logger after we know the log level. If we start sending log messages too early the
