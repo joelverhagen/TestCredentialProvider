@@ -72,7 +72,7 @@ class PluginLogger : IDisposable
     }
 
     public IPlugin? Plugin { get; set; }
-    public LogLevel LogLevel { get; set; }
+    public LogLevel LogLevel { get; set; } = LogLevel.Debug;
 
     public void Dispose()
     {
@@ -129,18 +129,19 @@ class PluginLogger : IDisposable
             var plugin = Plugin;
             if (plugin is null)
             {
-                return;
+                continue;
             }
 
             try
             {
-                await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
+                var _ = plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
                     MessageMethod.Log,
                     new LogRequest(level, message),
-                    _stopCts.Token);
+                    _stopCts.Token).ContinueWith(x => x.Exception, TaskContinuationOptions.OnlyOnFaulted);
             }
-            catch
+            catch (Exception ex)
             {
+                File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"Log failure: {ex}" });
                 // ignore
             }
         }
