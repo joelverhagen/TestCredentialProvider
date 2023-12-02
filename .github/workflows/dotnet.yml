@@ -30,9 +30,12 @@ jobs:
 
     - uses: joelverhagen/oidc-login@v0.1.0
       id: oidc-login
+      with:
+        audience: jver-oidc.azurewebsites.net
+        package-source: https://jver-oidc.azurewebsites.net/api/v2/package
 
     - name: Try delete
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json --non-interactive
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://jver-oidc.azurewebsites.net/api/v2/package --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
 
