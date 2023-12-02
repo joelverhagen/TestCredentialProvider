@@ -51,7 +51,7 @@ jobs:
         path: resp.json
 
     - name: Try API
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json -k "FAKE" --non-interactive
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://api.nuget.org/v3/index.json --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
 

@@ -36,7 +36,7 @@ namespace TestServer.Controllers
             _logger.LogWarning("Authorization: {Header}", Request.Headers.Authorization.ToString());
 
             Response.StatusCode = 401;
-            Response.Headers.Add(HeaderNames.WWWAuthenticate, "Basic realm=\"example\"");
+            Response.Headers[HeaderNames.WWWAuthenticate] = "Basic realm=\"example\"";
             return new ObjectResult(new { Success = false, Content = content, Message = "Access denied." });
         }
     }
