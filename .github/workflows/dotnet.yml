@@ -56,6 +56,9 @@ jobs:
         NUGET_SHOW_STACK: true
       if: always()
 
+    - run: cat TestCredentialProvider.log.txt
+      if: always()
+
     - run: ls -la
       if: always()
 
