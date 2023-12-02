@@ -56,12 +56,14 @@ internal class Program
 
 class PluginLogger : IDisposable
 {
+    private readonly Stopwatch _started;
     private readonly Channel<(LogLevel Level, string Message)> _messages;
     private readonly CancellationTokenSource _stopCts;
     private Lazy<Task> _lazyFlush;
 
     public PluginLogger()
     {
+        _started = Stopwatch.StartNew();
         _messages = Channel.CreateUnbounded<(LogLevel Level, string Message)>(new UnboundedChannelOptions
         {
             AllowSynchronousContinuations = false,
@@ -93,7 +95,7 @@ class PluginLogger : IDisposable
     {
         var pid = Process.GetCurrentProcess().Id;
         var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
-        LogToFile($"[oidc-login {pid} {levelPrefix}] {message}");
+        LogToFile($"[oidc-login {pid} {_started.Elapsed:mm:ss.fff} {levelPrefix}] {message}");
         _messages.Writer.TryWrite((level, $"    [oidc-login] {message}"));
     }
 
