@@ -3,8 +3,10 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Threading.Channels;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using NuGet.Common;
+using NuGet.Protocol;
 using NuGet.Protocol.Plugins;
 
 internal class Program
@@ -380,8 +382,17 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
 {
     private static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
     {
-        Converters = { new RedactingJsonConverter() }
+        Converters = new JsonConverter[]
+        {
+            new SemanticVersionConverter(),
+            new StringEnumConverter(),
+            new VersionRangeConverter(),
+            new RedactingJsonConverter(),
+        },
+        Formatting = Formatting.None,
+        NullValueHandling = NullValueHandling.Ignore,
     };
+
     protected readonly PluginLogger _logger;
 
     public RequestHandlerBase(PluginLogger logger)
