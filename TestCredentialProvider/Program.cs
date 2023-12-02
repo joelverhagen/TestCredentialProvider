@@ -1,17 +1,17 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using Newtonsoft.Json;
+using NuGet.Common;
 using NuGet.Protocol.Plugins;
-using static FileLogger;
 
 internal class Program
 {
     private static async Task Main(string[] args)
     {
+        var logger = new PluginLogger();
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, _) =>
         {
-            Log("Cancelled.");
             cts.Cancel();
         };
 
@@ -19,19 +19,20 @@ internal class Program
         {
             var requestHandlers = new RequestHandlerCollection
             {
-                { MessageMethod.Initialize, new InitializeRequestHandler() },
-                { MessageMethod.GetOperationClaims, new GetOperationClaimsRequestHandler() },
-                { MessageMethod.SetLogLevel, new SetLogLevelRequestHandler() },
-                { MessageMethod.GetAuthenticationCredentials, new GetAuthenticationCredentialsRequestHandler() },
-                { MessageMethod.SetCredentials, new SetCredentialsRequestHandler() },
+                { MessageMethod.Initialize, new InitializeRequestHandler(logger) },
+                { MessageMethod.GetOperationClaims, new GetOperationClaimsRequestHandler(logger) },
+                { MessageMethod.SetLogLevel, new SetLogLevelRequestHandler(logger) },
+                { MessageMethod.GetAuthenticationCredentials, new GetAuthenticationCredentialsRequestHandler(logger) },
+                { MessageMethod.SetCredentials, new SetCredentialsRequestHandler(logger) },
             };
 
             using (var plugin = await PluginFactory.CreateFromCurrentProcessAsync(requestHandlers, ConnectionOptions.CreateDefault(), cts.Token))
             {
+                logger.Plugin = plugin;
+
                 var closedTaskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 plugin.Closed += (_, _) =>
                 {
-                    Log("Closed.");
                     closedTaskCompletionSource.TrySetResult();
                 };
 
@@ -41,17 +42,38 @@ internal class Program
     }
 }
 
-static class FileLogger
+class PluginLogger
 {
-    public static void Log(string line)
+    public async Task LogAsync(LogLevel level, string message, CancellationToken token)
     {
-        File.AppendAllLines("TestCredentialProvider.log.txt", new[] { line });
+        if (level < LogLevel)
+        {
+            return;
+        }
+
+        var plugin = Plugin;
+        if (plugin is null)
+        {
+            return;
+        }
+
+        await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
+            MessageMethod.Log,
+            new LogRequest(level, message),
+            token);
     }
+
+    public IPlugin? Plugin { get; set; }
+    public LogLevel LogLevel { get; set; }
 }
 
 class InitializeRequestHandler : RequestHandlerBase<InitializeRequest, InitializeResponse>
 {
-    public override Task<InitializeResponse> HandleRequestAsync(InitializeRequest request)
+    public InitializeRequestHandler(PluginLogger logger) : base(logger)
+    {
+    }
+
+    public override Task<InitializeResponse> HandleRequestAsync(InitializeRequest request, CancellationToken cancellationToken)
     {
         return Task.FromResult(new InitializeResponse(MessageResponseCode.Success));
     }
@@ -59,7 +81,11 @@ class InitializeRequestHandler : RequestHandlerBase<InitializeRequest, Initializ
 
 class GetOperationClaimsRequestHandler : RequestHandlerBase<GetOperationClaimsRequest, GetOperationClaimsResponse>
 {
-    public override Task<GetOperationClaimsResponse> HandleRequestAsync(GetOperationClaimsRequest request)
+    public GetOperationClaimsRequestHandler(PluginLogger logger) : base(logger)
+    {
+    }
+
+    public override Task<GetOperationClaimsResponse> HandleRequestAsync(GetOperationClaimsRequest request, CancellationToken cancellationToken)
     {
         if (request.ServiceIndex is null && request.PackageSourceRepository is null)
         {
@@ -72,19 +98,28 @@ class GetOperationClaimsRequestHandler : RequestHandlerBase<GetOperationClaimsRe
 
 class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogLevelResponse>
 {
-    public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request)
+    public SetLogLevelRequestHandler(PluginLogger logger) : base(logger)
     {
+    }
+
+    public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogLevel = request.LogLevel;
         return Task.FromResult(new SetLogLevelResponse(MessageResponseCode.Success));
     }
 }
 
 class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthenticationCredentialsRequest, GetAuthenticationCredentialsResponse>
 {
-    public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request)
+    public GetAuthenticationCredentialsRequestHandler(PluginLogger logger) : base(logger)
     {
-        Log("Beginning authentication credential request for " + request.Uri);
+    }
+
+    public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request, CancellationToken cancellationToken)
+    {
+        await _logger.LogAsync(LogLevel.Warning, "Beginning authentication credential request for " + request.Uri, cancellationToken);
         var (success, message, token) = await GetTokenAsync(request);
-        Log(message);
+        await _logger.LogAsync(LogLevel.Warning, message, cancellationToken);
 
         if (!success)
         {
@@ -203,7 +238,11 @@ class TokenResponse
 
 class SetCredentialsRequestHandler : RequestHandlerBase<SetCredentialsRequest, SetCredentialsResponse>
 {
-    public override Task<SetCredentialsResponse> HandleRequestAsync(SetCredentialsRequest request)
+    public SetCredentialsRequestHandler(PluginLogger logger) : base(logger)
+    {
+    }
+
+    public override Task<SetCredentialsResponse> HandleRequestAsync(SetCredentialsRequest request, CancellationToken cancellationToken)
     {
         return Task.FromResult(new SetCredentialsResponse(MessageResponseCode.Success));
     }
@@ -212,15 +251,22 @@ class SetCredentialsRequestHandler : RequestHandlerBase<SetCredentialsRequest, S
 abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
     where TResponse : class
 {
-    public CancellationToken CancellationToken { get; }
+    protected PluginLogger _logger;
 
-    public abstract Task<TResponse> HandleRequestAsync(TRequest request);
+    public RequestHandlerBase(PluginLogger logger)
+    {
+        _logger = logger;
+    }
+
+    public CancellationToken CancellationToken { get; }
+    public abstract Task<TResponse> HandleRequestAsync(TRequest request, CancellationToken cancellationToken);
 
     public async Task HandleResponseAsync(IConnection connection, Message message, IResponseHandler responseHandler, CancellationToken cancellationToken)
     {
+        await _logger.LogAsync(LogLevel.Warning, "Received request: " + JsonConvert.SerializeObject(message), cancellationToken);
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
-        Log("Message: " + JsonConvert.SerializeObject(request));
-        var response = await HandleRequestAsync(request);
+        var response = await HandleRequestAsync(request, cancellationToken);
+        await _logger.LogAsync(LogLevel.Warning, "Sending response: " + JsonConvert.SerializeObject(response), cancellationToken);
         await responseHandler.SendResponseAsync(message, response, cancellationToken);
     }
 }
