@@ -28,7 +28,7 @@ jobs:
         }
         Write-Host $url
         Write-Host $headers
-        $resp = Invoke-WebRequest -Method POST $url -Headers $headers -Body "{}"
+        $resp = Invoke-WebRequest -Method GET $url -Headers $headers
         Write-Host $resp
         $resp.Content | Out-File "resp.json" -Encoding utf8
       env:
