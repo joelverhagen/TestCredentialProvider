@@ -93,7 +93,8 @@ class PluginLogger : IDisposable
     {
         var pid = Process.GetCurrentProcess().Id;
         var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
-        message = $"    [oidc-login {pid} {levelPrefix}] {message}";
+        var prefix = LogLevel < LogLevel.Minimal ? $"    [oidc-login {pid} {levelPrefix}] " : "    [oidc-login] ";
+        message = prefix + message;
 
         LogToFile(message);
         _messages.Writer.TryWrite((level, message));
@@ -194,6 +195,8 @@ class GetOperationClaimsRequestHandler : RequestHandlerBase<GetOperationClaimsRe
             return Task.FromResult(new GetOperationClaimsResponse(new[] { OperationClaim.Authentication }));
         }
 
+        _logger.Log(LogLevel.Warning, "Ignoring a plugin request not related to authentication.");
+
         return Task.FromResult(new GetOperationClaimsResponse(Array.Empty<OperationClaim>()));
     }
 }
@@ -207,6 +210,7 @@ class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogL
     public override Task<SetLogLevelResponse> HandleRequestAsync(SetLogLevelRequest request, CancellationToken cancellationToken)
     {
         _logger.LogLevel = request.LogLevel;
+        _logger.Log(LogLevel.Verbose, $"Setting log level to {request.LogLevel}.");
         return Task.FromResult(new SetLogLevelResponse(MessageResponseCode.Success));
     }
 }
