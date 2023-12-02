@@ -91,7 +91,7 @@ class PluginLogger : IDisposable
     public void Log(LogLevel level, string message)
     {
         var pid = Process.GetCurrentProcess().Id;
-        var levelPrefix = level.ToString().ToUpperInvariant().Substring(3);
+        var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
         message = $"    [oidc-login {pid}] [{levelPrefix}] {message}";
 
         LogToFile(message);
@@ -143,6 +143,10 @@ class PluginLogger : IDisposable
                     MessageMethod.Log,
                     new LogRequest(level, message),
                     _stopCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore
             }
             catch (Exception ex)
             {
@@ -278,7 +282,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             return (Success: false, $"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid URL.", Token: null);
         }
 
-        _logger.Log(LogLevel.Verbose, $"Using audience value '{tokenInfo.Audience} from NUGET_TOKEN_INFO.");
+        _logger.Log(LogLevel.Verbose, $"Using audience value '{tokenInfo.Audience}' from NUGET_TOKEN_INFO.");
         var audience = $"audience={Uri.EscapeDataString(tokenInfo.Audience)}";
         var tokenUrlBuilder = new UriBuilder(tokenUrl);
         if (string.IsNullOrEmpty(tokenUrlBuilder.Query))
@@ -294,12 +298,13 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
         try
         {
             _logger.Log(LogLevel.Verbose, "Fetching a token from the token URL provided in NUGET_TOKEN_INFO.");
+            var sw = Stopwatch.StartNew();
             using var httpClient = new HttpClient();
             using var requestMessage = new HttpRequestMessage(HttpMethod.Get, tokenUrlBuilder.Uri);
             requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenInfo.RuntimeToken);
             requestMessage.Headers.TryAddWithoutValidation("Accept", "application/json; api-version=2.0");
             using var responseMessage = await httpClient.SendAsync(requestMessage);
-            _logger.Log(LogLevel.Verbose, $"Token URL returned HTTP {(int)responseMessage.StatusCode}.");
+            _logger.Log(LogLevel.Verbose, $"Token URL returned HTTP {(int)responseMessage.StatusCode} after {sw.ElapsedMilliseconds}ms.");
             responseMessage.EnsureSuccessStatusCode();
             var tokenResponseJson = await responseMessage.Content.ReadAsStringAsync();
             tokenResponse = JsonConvert.DeserializeObject<TokenResponse>(tokenResponseJson);
