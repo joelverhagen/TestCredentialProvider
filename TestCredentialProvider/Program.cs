@@ -1,19 +1,17 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Threading.Channels;
 using Newtonsoft.Json;
 using NuGet.Common;
 using NuGet.Protocol.Plugins;
 
 internal class Program
 {
-    private static async Task Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
-        var logger = new PluginLogger();
-        var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, _) =>
-        {
-            cts.Cancel();
-        };
+        using var cts = new CancellationTokenSource();
+        using var logger = new PluginLogger(cts.Token);
+        Console.CancelKeyPress += (_, _) => cts.Cancel();
 
         if (args.Length == 1 && args[0] == "-Plugin")
         {
@@ -26,45 +24,116 @@ internal class Program
                 { MessageMethod.SetCredentials, new SetCredentialsRequestHandler(logger) },
             };
 
-            using (var plugin = await PluginFactory.CreateFromCurrentProcessAsync(requestHandlers, ConnectionOptions.CreateDefault(), cts.Token))
+            using var plugin = await PluginFactory.CreateFromCurrentProcessAsync(
+                requestHandlers,
+                ConnectionOptions.CreateDefault(),
+                cts.Token);
+
+            logger.Plugin = plugin;
+
+            var closedTaskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            plugin.Closed += (_, _) => closedTaskCompletionSource.TrySetResult();
+
+            await closedTaskCompletionSource.Task;
+            return 0;
+        }
+        else
+        {
+            Console.Error.WriteLine($"A single argument '-Plugin' is expected. Received {args.Length} arguments.");
+            if (args.Length > 0)
             {
-                logger.Plugin = plugin;
-
-                var closedTaskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                plugin.Closed += (_, _) =>
-                {
-                    closedTaskCompletionSource.TrySetResult();
-                };
-
-                await closedTaskCompletionSource.Task;
+                Console.Error.WriteLine($"  {string.Join(' ', args)}");
             }
+
+            return 1;
         }
     }
 }
 
-class PluginLogger
+class PluginLogger : IDisposable
 {
-    public async Task LogAsync(LogLevel level, string message, CancellationToken token)
+    private readonly Channel<(LogLevel Level, string Message)> _messages;
+    private readonly CancellationTokenSource _stopCts;
+    private readonly CancellationTokenSource _linkedCts;
+    private Lazy<Task> _lazyFlush;
+
+    public PluginLogger(CancellationToken token)
     {
-        if (level < LogLevel)
+        _messages = Channel.CreateUnbounded<(LogLevel Level, string Message)>(new UnboundedChannelOptions
         {
-            return;
-        }
-
-        var plugin = Plugin;
-        if (plugin is null)
-        {
-            return;
-        }
-
-        await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
-            MessageMethod.Log,
-            new LogRequest(level, message),
-            token);
+            AllowSynchronousContinuations = false,
+            SingleReader = true,
+            SingleWriter = false,
+        });
+        _stopCts = new CancellationTokenSource();
+        _linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_stopCts.Token, token);
+        _lazyFlush = new Lazy<Task>(FlushAsync);
     }
 
     public IPlugin? Plugin { get; set; }
     public LogLevel LogLevel { get; set; }
+
+    public void Dispose()
+    {
+        throw new NotImplementedException();
+    }
+
+    public void Log(LogLevel level, string message)
+    {
+        _messages.Writer.TryWrite((level, message));
+    }
+
+    public void Start()
+    {
+        var _ = _lazyFlush.Value;
+    }
+
+    public async void StopAsync()
+    {
+        if (!_lazyFlush.IsValueCreated)
+        {
+            return;
+        }
+
+        _stopCts.Cancel();
+        try
+        {
+            await _lazyFlush.Value;
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+    }
+
+    private async Task FlushAsync()
+    {
+        await foreach (var (level, message) in _messages.Reader.ReadAllAsync(_linkedCts.Token))
+        {
+            if (level < LogLevel)
+            {
+                continue;
+            }
+
+            var plugin = Plugin;
+            if (plugin is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
+                    MessageMethod.Log,
+                    new LogRequest(level, message),
+                    _linkedCts.Token);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
 }
 
 class InitializeRequestHandler : RequestHandlerBase<InitializeRequest, InitializeResponse>
@@ -117,9 +186,9 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
 
     public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request, CancellationToken cancellationToken)
     {
-        await _logger.LogAsync(LogLevel.Warning, "Beginning authentication credential request for " + request.Uri, cancellationToken);
+        _logger.Log(LogLevel.Warning, "Beginning authentication credential request for " + request.Uri);
         var (success, message, token) = await GetTokenAsync(request);
-        await _logger.LogAsync(LogLevel.Warning, message, cancellationToken);
+        _logger.Log(LogLevel.Warning, message);
 
         if (!success)
         {
@@ -263,10 +332,10 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
 
     public async Task HandleResponseAsync(IConnection connection, Message message, IResponseHandler responseHandler, CancellationToken cancellationToken)
     {
-        await _logger.LogAsync(LogLevel.Warning, "Received request: " + JsonConvert.SerializeObject(message), cancellationToken);
+        _logger.Log(LogLevel.Warning, "Received request: " + JsonConvert.SerializeObject(message));
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
         var response = await HandleRequestAsync(request, cancellationToken);
-        await _logger.LogAsync(LogLevel.Warning, "Sending response: " + JsonConvert.SerializeObject(response), cancellationToken);
+        _logger.Log(LogLevel.Warning, "Sending response: " + JsonConvert.SerializeObject(response));
         await responseHandler.SendResponseAsync(message, response, cancellationToken);
     }
 }
