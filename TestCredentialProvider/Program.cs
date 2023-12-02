@@ -93,11 +93,8 @@ class PluginLogger : IDisposable
     {
         var pid = Process.GetCurrentProcess().Id;
         var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
-        var prefix = LogLevel < LogLevel.Information ? $"    [oidc-login {pid} {levelPrefix}] " : "    [oidc-login] ";
-        message = prefix + message;
-
-        LogToFile(message);
-        _messages.Writer.TryWrite((level, message));
+        LogToFile($"[oidc-login {pid} {levelPrefix}] {message}");
+        _messages.Writer.TryWrite((level, $"    [oidc-login] {message}"));
     }
 
     public void Start()
