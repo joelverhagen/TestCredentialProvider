@@ -10,7 +10,7 @@ internal class Program
     private static async Task<int> Main(string[] args)
     {
         using var cts = new CancellationTokenSource();
-        using var logger = new PluginLogger(cts.Token);
+        using var logger = new PluginLogger();
         logger.Start();
 
         Console.CancelKeyPress += (_, _) => cts.Cancel();
@@ -36,8 +36,8 @@ internal class Program
             var closedTaskCompletionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             plugin.Closed += (_, _) => closedTaskCompletionSource.TrySetResult();
 
-            await logger.StopAsync();
             await closedTaskCompletionSource.Task;
+            await logger.StopAsync(TimeSpan.FromSeconds(1));
             return 0;
         }
         else
@@ -57,10 +57,9 @@ class PluginLogger : IDisposable
 {
     private readonly Channel<(LogLevel Level, string Message)> _messages;
     private readonly CancellationTokenSource _stopCts;
-    private readonly CancellationTokenSource _linkedCts;
     private Lazy<Task> _lazyFlush;
 
-    public PluginLogger(CancellationToken token)
+    public PluginLogger()
     {
         _messages = Channel.CreateUnbounded<(LogLevel Level, string Message)>(new UnboundedChannelOptions
         {
@@ -69,7 +68,6 @@ class PluginLogger : IDisposable
             SingleWriter = false,
         });
         _stopCts = new CancellationTokenSource();
-        _linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_stopCts.Token, token);
         _lazyFlush = new Lazy<Task>(FlushAsync);
     }
 
@@ -88,11 +86,11 @@ class PluginLogger : IDisposable
         }
 
         _stopCts.Dispose();
-        _linkedCts.Dispose();
     }
 
     public void Log(LogLevel level, string message)
     {
+        File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
         _messages.Writer.TryWrite((level, message));
     }
 
@@ -101,14 +99,14 @@ class PluginLogger : IDisposable
         var _ = _lazyFlush.Value;
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(TimeSpan delay)
     {
         if (!_lazyFlush.IsValueCreated)
         {
             return;
         }
 
-        _stopCts.Cancel();
+        _stopCts.CancelAfter(delay);
         try
         {
             await _lazyFlush.Value;
@@ -121,10 +119,8 @@ class PluginLogger : IDisposable
 
     private async Task FlushAsync()
     {
-        await foreach (var (level, message) in _messages.Reader.ReadAllAsync(_linkedCts.Token))
+        await foreach (var (level, message) in _messages.Reader.ReadAllAsync(_stopCts.Token))
         {
-            File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
-
             if (level < LogLevel)
             {
                 continue;
@@ -141,7 +137,7 @@ class PluginLogger : IDisposable
                 await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
                     MessageMethod.Log,
                     new LogRequest(level, message),
-                    _linkedCts.Token);
+                    _stopCts.Token);
             }
             catch
             {
