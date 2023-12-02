@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Threading.Channels;
 using Newtonsoft.Json;
@@ -89,7 +90,11 @@ class PluginLogger : IDisposable
 
     public void Log(LogLevel level, string message)
     {
-        File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"[{level}] {message}" });
+        var pid = Process.GetCurrentProcess().Id;
+        var levelPrefix = level.ToString().ToUpperInvariant().Substring(3);
+        message = $"    [oidc-login {pid}] [{levelPrefix}] {message}";
+
+        LogToFile(message);
         _messages.Writer.TryWrite((level, message));
     }
 
@@ -134,16 +139,27 @@ class PluginLogger : IDisposable
 
             try
             {
-                var _ = plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
+                await plugin.Connection.SendRequestAndReceiveResponseAsync<LogRequest, LogResponse>(
                     MessageMethod.Log,
                     new LogRequest(level, message),
-                    _stopCts.Token).ContinueWith(x => x.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                    _stopCts.Token);
             }
             catch (Exception ex)
             {
-                File.AppendAllLines("TestCredentialProvider.log.txt", new[] { $"Log failure: {ex}" });
-                // ignore
+                LogToFile("Logging error: " + ex);
             }
+        }
+    }
+
+    private static void LogToFile(string message)
+    {
+        try
+        {
+            File.AppendAllLines("TestCredentialProvider.log.txt", new[] { message });
+        }
+        catch
+        {
+            // best effort
         }
     }
 }
