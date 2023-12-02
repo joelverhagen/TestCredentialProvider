@@ -75,7 +75,17 @@ class PluginLogger : IDisposable
 
     public void Dispose()
     {
-        throw new NotImplementedException();
+        try
+        {
+            _stopCts.Cancel();
+        }
+        catch
+        {
+            //
+        }
+
+        _stopCts.Dispose();
+        _linkedCts.Dispose();
     }
 
     public void Log(LogLevel level, string message)
