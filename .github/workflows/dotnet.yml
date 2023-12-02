@@ -51,7 +51,7 @@ jobs:
         path: resp.json
 
     - name: Try restore
-      run: dotnet restore -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json --non-interactive
+      run: dotnet restore -s https://devdiv.pkgs.visualstudio.com/DevDiv/_packaging/nuget-server-upstreams/nuget/v3/index.json
       env:
         NUGET_TOKEN_INFO: ${{ steps.iodc-login.outputs.token-info }}
       if: always()
