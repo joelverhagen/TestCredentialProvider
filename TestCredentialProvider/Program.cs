@@ -310,7 +310,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             tokenResponse = JsonConvert.DeserializeObject<TokenResponse>(tokenResponseJson);
             if (string.IsNullOrEmpty(tokenResponse?.Value))
             {
-                return (Success: false, $"No value was found in the token response.", Token: null);
+                return (Success: false, "No token value was found in the token URL response.", Token: null);
             }
         }
         catch (Exception ex)
