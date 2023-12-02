@@ -1,7 +1,8 @@
-﻿using NuGet.Protocol.Plugins;
-using System.Collections.Concurrent;
-using static FileLogger;
+﻿using System.Collections.Concurrent;
+using System.Net.Http.Headers;
 using Newtonsoft.Json;
+using NuGet.Protocol.Plugins;
+using static FileLogger;
 
 internal class Program
 {
@@ -13,7 +14,6 @@ internal class Program
             Log("Cancelled.");
             cts.Cancel();
         };
-
 
         if (args.Length == 1 && args[0] == "-Plugin")
         {
@@ -45,8 +45,7 @@ static class FileLogger
 {
     public static void Log(string line)
     {
-        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-        File.AppendAllLines(Path.Combine(desktop, "TestCredentialProvider.log.txt"), new[] { line });
+        File.AppendAllLines("TestCredentialProvider.log.txt", new[] { line });
     }
 }
 
@@ -81,22 +80,125 @@ class SetLogLevelRequestHandler : RequestHandlerBase<SetLogLevelRequest, SetLogL
 
 class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthenticationCredentialsRequest, GetAuthenticationCredentialsResponse>
 {
-    public override Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request)
+    public override async Task<GetAuthenticationCredentialsResponse> HandleRequestAsync(GetAuthenticationCredentialsRequest request)
     {
-        var response = new GetAuthenticationCredentialsResponse(
-            "GitHubActions",
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-            "Some message?",
-            new[] { "Basic" },
-            MessageResponseCode.Success);
+        Log("Beginning authentication credential request for " + request.Uri);
+        var (success, message, token) = await GetTokenAsync(request);
+        Log(message);
 
-        if (!response.IsValid())
+        if (!success)
         {
-            throw new InvalidOperationException("Invalid response!");
+            return new GetAuthenticationCredentialsResponse(
+                username: string.Empty,
+                password: string.Empty,
+                message,
+                authenticationTypes: Array.Empty<string>(),
+                MessageResponseCode.NotFound);
+        }
+        
+        return new GetAuthenticationCredentialsResponse(
+            username: "BEARER_TOKEN_USER",
+            password: token,
+            message,
+            authenticationTypes: new[] { "Basic" },
+            MessageResponseCode.Success);
+    }
+
+    private async Task<(bool Success, string Message, string? Token)> GetTokenAsync(GetAuthenticationCredentialsRequest request)
+    {
+        var tokenInfoJson = Environment.GetEnvironmentVariable("NUGET_TOKEN_INFO");
+        if (string.IsNullOrWhiteSpace(tokenInfoJson))
+        {
+            return (Success: false, "Environment variable NUGET_TOKEN_INFO is not set.", Token: null);
         }
 
-        return Task.FromResult(response);
+        TokenInfo? tokenInfo;
+        try
+        {
+            tokenInfo = JsonConvert.DeserializeObject<TokenInfo>(tokenInfoJson);
+            if (tokenInfo is null)
+            {
+                return (Success: false, "The NUGET_TOKEN_INFO environment variable is not set.", Token: null);
+            }
+        }
+        catch (JsonException ex)
+        {
+            return (Success: false, "The NUGET_TOKEN_INFO environment variable could not be deserialized. " + ex.Message, Token: null);
+        }
+
+        if (tokenInfo.PackageSource != request.Uri.AbsoluteUri)
+        {
+            return (Success: false, $"The package source '{tokenInfo.PackageSource}' in NUGET_TOKEN_INFO " +
+                $"does not match '{request.Uri.AbsoluteUri}' in the credential request.", Token: null);
+        }
+
+        if (!Uri.TryCreate(tokenInfo.TokenUrl, UriKind.Absolute, out var tokenUrl))
+        {
+            return (Success: false, $"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid URL.", Token: null);
+        }
+
+        var audience = $"audience={Uri.EscapeDataString(tokenInfo.Audience)}";
+        var tokenUrlBuilder = new UriBuilder(tokenUrl);
+        if (string.IsNullOrEmpty(tokenUrlBuilder.Query))
+        {
+            tokenUrlBuilder.Query = audience;
+        }
+        else
+        {
+            tokenUrlBuilder.Query += "&" + audience;
+        }
+
+        TokenResponse? tokenResponse;
+        try
+        {
+            using var httpClient = new HttpClient();
+            using var requestMessage = new HttpRequestMessage(HttpMethod.Get, tokenUrlBuilder.Uri);
+            requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenInfo.RuntimeToken);
+            requestMessage.Headers.TryAddWithoutValidation("Accept", "application/json; api-version=2.0");
+            using var responseMessage = await httpClient.SendAsync(requestMessage);
+            responseMessage.EnsureSuccessStatusCode();
+            var tokenResponseJson = await responseMessage.Content.ReadAsStringAsync();
+            tokenResponse = JsonConvert.DeserializeObject<TokenResponse>(tokenResponseJson);
+            if (string.IsNullOrEmpty(tokenResponse?.Value))
+            {
+                return (Success: false, $"No value was found in the token response.", Token: null);
+            }
+        }
+        catch (Exception ex)
+        {
+            return (Success: false, $"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message, Token: null);
+        }
+
+        return (Success: true, "Successfully fetched a token.", Token: tokenResponse.Value);
     }
+}
+
+class TokenInfo
+{
+    [JsonConstructor]
+    public TokenInfo(string audience, string packageSource, string runtimeToken, string tokenUrl)
+    {
+        Audience = audience;
+        PackageSource = packageSource;
+        RuntimeToken = runtimeToken;
+        TokenUrl = tokenUrl;
+    }
+
+    public string Audience { get; }
+    public string PackageSource { get; }
+    public string RuntimeToken { get; }
+    public string TokenUrl { get; }
+}
+
+class TokenResponse
+{
+    [JsonConstructor]
+    public TokenResponse(string value)
+    {
+        Value = value;
+    }
+
+    public string Value { get; }
 }
 
 class SetCredentialsRequestHandler : RequestHandlerBase<SetCredentialsRequest, SetCredentialsResponse>
