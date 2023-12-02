@@ -24,7 +24,7 @@ jobs:
         $headers = @{
           Authorization = "Bearer $($info.runtimeToken)";
           Accept = "application/json; api-version=2.0";
-          Content-Type = "application/json"
+          "Content-Type" = "application/json"
         }
         $resp = Invoke-WebRequest -Method POST $url -Headers $headers -Body "{}"
         Write-Host $resp.Content
