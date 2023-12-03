@@ -36,7 +36,7 @@ jobs:
         package-source: https://jver-oidc.azurewebsites.net/api/v2/package
 
     - name: Try restore
-      run: dotnet nuget restore -s https://jver-oidc.azurewebsites.net/api/v2/package
+      run: dotnet restore -s https://jver-oidc.azurewebsites.net/api/v2/package
       env:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
 
