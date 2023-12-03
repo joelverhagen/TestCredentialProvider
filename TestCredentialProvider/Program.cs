@@ -255,8 +255,8 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
         );
 
         var response = new GetAuthenticationCredentialsResponse(
-            username: tokenInfo!.Username,
-            password: token,
+            username: "user",
+            password: "pass",
             message: null,
             authenticationTypes: new List<string> { "Basic" },
             MessageResponseCode.Success);
