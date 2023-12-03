@@ -25,8 +25,8 @@ jobs:
     - name: Build
       run: dotnet build --no-restore
 
-    # - name: Publish
-    #   run: dotnet publish --output ~/.nuget/plugins/netcore/TestCredentialProvider
+    - name: Publish
+      run: dotnet publish --output ~/.nuget/plugins/netcore/TestCredentialProvider
 
     - uses: joelverhagen/oidc-login@v0.4.0
       id: oidc-login
@@ -40,7 +40,7 @@ jobs:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
         NUGET_DANGEROUS_NO_REDACT: true
 
-    - run: ls -R ~/.nuget
+    - run: ls -R ~/.nuget/plugins
       if: always()
 
     - run: cat TestCredentialProvider.log.txt
