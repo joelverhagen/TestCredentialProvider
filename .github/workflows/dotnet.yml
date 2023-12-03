@@ -28,7 +28,7 @@ jobs:
     # - name: Publish
     #   run: dotnet publish --output ~/.nuget/plugins/netcore/TestCredentialProvider
 
-    - uses: joelverhagen/oidc-login@v0.3.0
+    - uses: joelverhagen/oidc-login@v0.4.0
       id: oidc-login
       with:
         username: jver
