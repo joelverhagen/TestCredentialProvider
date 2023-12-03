@@ -38,6 +38,7 @@ jobs:
       run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://jver-oidc.azurewebsites.net/api/v2/package --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
+        NUGET_DANGEROUS_NO_REDACT: true
 
     - run: cat TestCredentialProvider.log.txt
       if: always()

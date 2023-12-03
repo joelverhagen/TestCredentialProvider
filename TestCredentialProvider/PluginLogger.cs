@@ -13,6 +13,7 @@ class PluginLogger : IDisposable
     private readonly Channel<(LogLevel Level, string Message)> _messages;
     private readonly CancellationTokenSource _stopCts;
     private readonly ConcurrentBag<string> _redacted;
+    private readonly bool _shouldRedact;
     private readonly Lazy<Task> _lazyFlush;
 
     public PluginLogger()
@@ -26,7 +27,15 @@ class PluginLogger : IDisposable
         });
         _stopCts = new();
         _redacted = new();
+        _shouldRedact = !StringComparer.OrdinalIgnoreCase.Equals(
+            Environment.GetEnvironmentVariable("NUGET_DANGEROUS_NO_REDACT"),
+            "true");
         _lazyFlush = new Lazy<Task>(PumpAsync);
+        
+        if (!_shouldRedact)
+        {
+            Log(LogLevel.Warning, "NUGET_DANGEROUS_NO_REDACT is enabled so sensitive values will not be redacted from logs.");
+        }
     }
 
     public IPlugin? Plugin { get; set; }
@@ -56,11 +65,14 @@ class PluginLogger : IDisposable
         var pid = Process.GetCurrentProcess().Id;
         var levelPrefix = level.ToString().ToUpperInvariant().Substring(0, 3);
 
-        foreach (var value in _redacted)
+        if (_shouldRedact)
         {
-            message = message.Replace(value, "REDACTED", StringComparison.OrdinalIgnoreCase);
-            message = message.Replace(System.Text.Json.JsonSerializer.Serialize(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
-            message = message.Replace(JsonConvert.SerializeObject(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
+            foreach (var value in _redacted)
+            {
+                message = message.Replace(value, "REDACTED", StringComparison.OrdinalIgnoreCase);
+                message = message.Replace(System.Text.Json.JsonSerializer.Serialize(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
+                message = message.Replace(JsonConvert.SerializeObject(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
+            }
         }
 
         LogToFile($"[oidc-login {pid} {_started.Elapsed.TotalSeconds:0.000} {levelPrefix}] {message}");
