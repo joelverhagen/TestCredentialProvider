@@ -58,6 +58,14 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             return CredentialProviderResult.NotSupported();
         }
 
+        foreach (var provider in _providers)
+        {
+            foreach (var value in provider.GetValuesToRedact(tokenInfoJson))
+            {
+                _logger.Redact(value);
+            }
+        }
+
         _logger.Log(LogLevel.Debug, $"Found NUGET_TOKEN_INFO environment variable: {tokenInfoJson}");
 
         TokenInfo? tokenInfo;
@@ -99,6 +107,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
                     _logger.Log(LogLevel.Error, result.ErrorMessage!);
                     return result;
                 case CredentialProviderResultType.BearerToken:
+                    _logger.Redact(result.BearerToken!);
                     _logger.Log(LogLevel.Minimal, result.SuccessMessage!);
                     return result;
                 default:

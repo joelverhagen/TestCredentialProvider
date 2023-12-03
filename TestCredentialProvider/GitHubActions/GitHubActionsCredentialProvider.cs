@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using NuGet.Common;
@@ -12,6 +13,24 @@ class GitHubActionsCredentialProvider : ICredentialProvider
     public GitHubActionsCredentialProvider(PluginLogger logger)
     {
         _logger = logger;
+    }
+
+    public IEnumerable<string> GetValuesToRedact(string tokenInfoJson)
+    {
+        GitHubActionsV1TokenInfo? info = null;
+        try
+        {
+            info = JsonConvert.DeserializeObject<GitHubActionsV1TokenInfo>(tokenInfoJson)!;
+        }
+        catch
+        {
+            // ignore
+        }
+
+        if (info != null)
+        {
+            yield return info.RuntimeToken;
+        }
     }
 
     public async Task<CredentialProviderResult> GetResponseOrNullAsync(string type, string tokenInfoJson)
@@ -73,6 +92,6 @@ class GitHubActionsCredentialProvider : ICredentialProvider
             return CredentialProviderResult.Error($"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message);
         }
 
-        return CredentialProviderResult.BearerTokenResult(tokenResponse.Value, "Successfully fetched a GitHub Actions token.");
+        return CredentialProviderResult.BearerTokenResult(tokenResponse.Value, $"Successfully fetched a GitHub Actions token for '{audience}'.");
     }
 }
