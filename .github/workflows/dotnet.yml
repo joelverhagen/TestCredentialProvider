@@ -40,6 +40,9 @@ jobs:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
         NUGET_DANGEROUS_NO_REDACT: true
 
+    - run: ls -R ~/.nuget
+      if: always()
+
     - run: cat TestCredentialProvider.log.txt
       if: always()
 
