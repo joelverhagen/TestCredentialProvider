@@ -272,6 +272,7 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
     private async Task<(bool Success, string Message, TokenInfo? TokenInfo, string? Token)> GetTokenAsync(GetAuthenticationCredentialsRequest request)
     {
         var tokenInfoJson = Environment.GetEnvironmentVariable("NUGET_TOKEN_INFO");
+        _logger.Log(LogLevel.Debug, "NUGET_TOKEN_INFO = " + tokenInfoJson);
         if (string.IsNullOrWhiteSpace(tokenInfoJson))
         {
             return (Success: false, "Environment variable NUGET_TOKEN_INFO is not set.", TokenInfo: null, Token: null);
