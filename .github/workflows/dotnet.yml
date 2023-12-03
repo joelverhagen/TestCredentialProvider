@@ -36,7 +36,7 @@ jobs:
         package-source: https://jver-oidc.azurewebsites.net/api/v2/package
 
     - name: Try delete
-      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -s https://jver-oidc.azurewebsites.net/api/v2/package --non-interactive
+      run: dotnet nuget delete Knapcode.TorSharp 2.15.0 -k "foo" -s https://jver-oidc.azurewebsites.net/api/v2/package --non-interactive
       env:
         NUGET_TOKEN_INFO: ${{ steps.oidc-login.outputs.token-info }}
 
