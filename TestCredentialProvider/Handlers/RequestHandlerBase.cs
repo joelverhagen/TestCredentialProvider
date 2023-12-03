@@ -1,4 +1,5 @@
-﻿using NuGet.Common;
+﻿using Newtonsoft.Json;
+using NuGet.Common;
 using NuGet.Protocol.Plugins;
 
 namespace NuGet.Protocol.TokenCredentialProvider;
@@ -18,13 +19,13 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
 
     public async Task HandleResponseAsync(IConnection connection, Message message, IResponseHandler responseHandler, CancellationToken cancellationToken)
     {
-        _logger.Log(LogLevel.Debug, $"Received request: {JsonSerializationUtilities.FromObject(message)}");
-
+        _logger.Log(LogLevel.Debug, $"Received request: {Serialize(message)}");
+        
         var request = MessageUtilities.DeserializePayload<TRequest>(message);
         
         var response = await HandleRequestAsync(request, cancellationToken);
 
-        _logger.Log(LogLevel.Debug, $"Sending response: {JsonSerializationUtilities.FromObject(message)}");
+        _logger.Log(LogLevel.Debug, $"Sending response: {Serialize(response)}");
 
         // Wait a little bit of time before sending the response to allow logs to be flushed. This provides more
         // reliable logging visible in NuGet's logging output.
@@ -39,5 +40,16 @@ abstract class RequestHandlerBase<TRequest, TResponse> : IRequestHandler
             _logger.Log(LogLevel.Debug, "Starting plugin logger.");
             _logger.Start();
         }
+    }
+
+    private string Serialize<T>(T value)
+    {
+        using var stringWriter = new StringWriter();
+        using (var jsonWriter = new JsonTextWriter(stringWriter))
+        {
+            JsonSerializationUtilities.Serialize(jsonWriter, value);
+        }
+
+        return stringWriter.ToString();
     }
 }
