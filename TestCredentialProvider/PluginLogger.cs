@@ -34,7 +34,7 @@ class PluginLogger : IDisposable
         
         if (!_shouldRedact)
         {
-            Log(LogLevel.Warning, "NUGET_DANGEROUS_NO_REDACT is enabled so sensitive values will not be redacted from logs.");
+            Log(LogLevel.Minimal, "NUGET_DANGEROUS_NO_REDACT is enabled so sensitive values will not be redacted from logs.");
         }
     }
 
