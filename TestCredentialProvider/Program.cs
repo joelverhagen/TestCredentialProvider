@@ -247,6 +247,13 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
                 MessageResponseCode.NotFound);
         }
 
+        var up = $"{tokenInfo!.Username}:{token}";
+        var encoded = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(up));
+        _logger.Log(
+            LogLevel.Verbose,
+            $"Authorization: Basic {encoded}"
+        );
+
         var response = new GetAuthenticationCredentialsResponse(
             username: tokenInfo!.Username,
             password: token,
