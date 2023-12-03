@@ -48,3 +48,7 @@ jobs:
         name: my-log
         path: TestCredentialProvider.log.txt
       if: always()
+
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: always()
