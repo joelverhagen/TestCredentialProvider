@@ -32,7 +32,6 @@ jobs:
       id: oidc-login
       with:
         username: jver
-        audience: jver-oidc.azurewebsites.net
         package-source: https://jver-oidc.azurewebsites.net/api/v2/package
 
     - name: Try delete
