@@ -37,7 +37,7 @@ class GitHubActionsCredentialProvider : ICredentialProvider
             return CredentialProviderResult.Error($"The token URL '{tokenInfo.TokenUrl}' in NUGET_TOKEN_INFO is not a valid HTTPS URL.");
         }
 
-        _logger.Log(LogLevel.Verbose, $"Using audience value '{tokenInfo.Audience}' from NUGET_TOKEN_INFO.");
+        _logger.Log(LogLevel.Debug, $"Using audience value '{tokenInfo.Audience}' from NUGET_TOKEN_INFO.");
         var audience = $"audience={Uri.EscapeDataString(tokenInfo.Audience)}";
         var tokenUrlBuilder = new UriBuilder(tokenUrl);
         if (string.IsNullOrEmpty(tokenUrlBuilder.Query))
@@ -52,14 +52,14 @@ class GitHubActionsCredentialProvider : ICredentialProvider
         GitHubActionsTokenResponse? tokenResponse;
         try
         {
-            _logger.Log(LogLevel.Verbose, "Fetching a token from the token URL provided in NUGET_TOKEN_INFO.");
+            _logger.Log(LogLevel.Debug, "Fetching a token from the token URL provided in NUGET_TOKEN_INFO.");
             var sw = Stopwatch.StartNew();
             using var httpClient = new HttpClient();
             using var requestMessage = new HttpRequestMessage(HttpMethod.Get, tokenUrlBuilder.Uri);
             requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenInfo.RuntimeToken);
             requestMessage.Headers.TryAddWithoutValidation("Accept", "application/json; api-version=2.0");
             using var responseMessage = await httpClient.SendAsync(requestMessage);
-            _logger.Log(LogLevel.Verbose, $"Token URL returned HTTP {(int)responseMessage.StatusCode} after {sw.ElapsedMilliseconds}ms.");
+            _logger.Log(LogLevel.Debug, $"Token URL returned HTTP {(int)responseMessage.StatusCode} after {sw.ElapsedMilliseconds}ms.");
             responseMessage.EnsureSuccessStatusCode();
             var tokenResponseJson = await responseMessage.Content.ReadAsStringAsync();
             tokenResponse = JsonConvert.DeserializeObject<GitHubActionsTokenResponse>(tokenResponseJson);

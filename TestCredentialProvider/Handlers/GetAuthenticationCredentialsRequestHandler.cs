@@ -49,14 +49,16 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
 
     private async Task<CredentialProviderResult> GetCredentialAsync(GetAuthenticationCredentialsRequest request)
     {
-        _logger.Log(LogLevel.Verbose, $"Beginning authentication credential request for package source '{request.Uri.AbsoluteUri}'.");
+        _logger.Log(LogLevel.Debug, $"Beginning authentication credential request for package source '{request.Uri.AbsoluteUri}'.");
 
         var tokenInfoJson = Environment.GetEnvironmentVariable("NUGET_TOKEN_INFO");
         if (string.IsNullOrWhiteSpace(tokenInfoJson))
         {
-            _logger.Log(LogLevel.Minimal, "The NUGET_TOKEN_INFO environment variable is not set. The NuGet TokenCredentialProvider will not be used.");
+            _logger.Log(LogLevel.Warning, "The NUGET_TOKEN_INFO environment variable is not set. The NuGet TokenCredentialProvider will not be used.");
             return CredentialProviderResult.NotSupported();
         }
+
+        _logger.Log(LogLevel.Debug, $"Found NUGET_TOKEN_INFO environment variable: {tokenInfoJson}");
 
         TokenInfo? tokenInfo;
         try
@@ -81,17 +83,17 @@ class GetAuthenticationCredentialsRequestHandler : RequestHandlerBase<GetAuthent
             return CredentialProviderResult.NotSupported();
         }
 
-        _logger.Log(LogLevel.Verbose, "Found a matching package source in NUGET_TOKEN_INFO.");
+        _logger.Log(LogLevel.Debug, "Found a matching package source in NUGET_TOKEN_INFO.");
 
         foreach (var provider in _providers)
         {
             var providerName = provider.GetType().Name;
-            _logger.Log(LogLevel.Verbose, $"Starting the {providerName} credential provider.");
+            _logger.Log(LogLevel.Debug, $"Starting the {providerName} credential provider.");
             var result = await provider.GetResponseOrNullAsync(tokenInfo.Type, tokenInfoJson);
             switch (result.Type)
             {
                 case CredentialProviderResultType.NotSupported:
-                    _logger.Log(LogLevel.Verbose, $"The '{tokenInfo.Type}' type in the NUGET_TOKEN_INFO is not supported by the '{providerName}' credential provider.");
+                    _logger.Log(LogLevel.Debug, $"The '{tokenInfo.Type}' type in the NUGET_TOKEN_INFO is not supported by the '{providerName}' credential provider.");
                     break;
                 case CredentialProviderResultType.Error:
                     _logger.Log(LogLevel.Error, result.ErrorMessage!);

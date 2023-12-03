@@ -17,7 +17,6 @@ class GetOperationClaimsRequestHandler : RequestHandlerBase<GetOperationClaimsRe
         }
 
         _logger.Log(LogLevel.Warning, "Ignoring a plugin request not related to authentication.");
-
         return Task.FromResult(new GetOperationClaimsResponse(Array.Empty<OperationClaim>()));
     }
 }
