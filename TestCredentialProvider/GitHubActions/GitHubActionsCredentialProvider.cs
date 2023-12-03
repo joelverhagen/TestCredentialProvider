@@ -92,6 +92,6 @@ class GitHubActionsCredentialProvider : ICredentialProvider
             return CredentialProviderResult.Error($"Failed to fetch token from '{tokenInfo.TokenUrl}'. " + ex.Message);
         }
 
-        return CredentialProviderResult.BearerTokenResult(tokenResponse.Value, $"Successfully fetched a GitHub Actions token for '{audience}'.");
+        return CredentialProviderResult.BearerTokenResult(tokenResponse.Value, $"Successfully fetched a GitHub Actions token for {tokenInfo.Audience}.");
     }
 }

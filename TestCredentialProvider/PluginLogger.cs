@@ -58,9 +58,9 @@ class PluginLogger : IDisposable
 
         foreach (var value in _redacted)
         {
-            message.Replace(value, "REDACTED", StringComparison.OrdinalIgnoreCase);
-            message.Replace(System.Text.Json.JsonSerializer.Serialize(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
-            message.Replace(JsonConvert.SerializeObject(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
+            message = message.Replace(value, "REDACTED", StringComparison.OrdinalIgnoreCase);
+            message = message.Replace(System.Text.Json.JsonSerializer.Serialize(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
+            message = message.Replace(JsonConvert.SerializeObject(value), "\"REDACTED\"", StringComparison.OrdinalIgnoreCase);
         }
 
         LogToFile($"[oidc-login {pid} {_started.Elapsed.TotalSeconds:0.000} {levelPrefix}] {message}");
